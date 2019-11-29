@@ -1,0 +1,145 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Questions 2-5 below require the peacekeeping data set that we worked on in class, as well as this codebook (see the appendix):
+http://web.worldbank.org/archive/website01241/WEB/IMAGES/INTERNAT.PDF
+
+The class breakout instructions (including data download code) are here:
+https://gist.github.com/diamonaj/3795bfc2e6349d00aa0ccfe14102858d
+
+```{r}
+# Importing relevant libraries
+library(Matching)
+
+# Importing the data
+foo <- read.csv("https://course-resources.minerva.kgi.edu/uploaded_files/mke/00086677-3767/peace.csv")
+                
+# Extract relevant columns
+## Class break-out code
+foo <- foo[, c(6:8, 11:16, 99, 50, 114, 49, 52, 63, 136, 109, 126, 48, 160, 142, 10, 108)] # WHY were 52 and 108 not included here originally? Should I include them as per the past answer key code?
+
+# Remove 2 rows with missing data (there are better ways to handle missing data)
+foo <- foo[c(-19, -47), ]
+
+# Check that all missing data is gone...
+which(is.na(foo) == TRUE)
+
+# Take a peek at the data set (identify the columns)
+head(foo)
+
+
+## Treatment is a binary version of "uncint": levels of UN intervention (i.e. "Enforcement," "None," "Observer," "PKO")
+## Outcomes are "pbs2l": peacebuilding success 2 years after the war; and "pbs5l": peacebuilding success 5 years after the war 
+
+```
+
+(2) Replicate the analysis done to produce figure 8 in https://gking.harvard.edu/files/counterf.pdf -- EXCEPT instead of the original interaction term, add two other interaction terms: (exp*untype4) and (wardur*logcost).
+
+# EXCEPT that this figure considers the implications of
+# adding an interaction term (wardur * untype4) to the basic model. 
+# I want you to consider the implications of adding the interaction term (logdead*untype4).
+Show the marginal effects of UN peacekeeping as a function of war duration, as in the original figure. 
+
+A few suggestions:
+- Read the class breakout instructions above to get the data and relevant columns;
+- If you are not clear on the model, read the relevant sections of the paper and focus on understanding Table 2;
+- To plot the figure, you should use a strategy similar to the one we used in the statistics scavenger hunt, which was also used in a previous assignment (e.g., holding predictors at their means and looping through values of one variable to obtain treatment effects at different levels of the variable--you may want to review the answer key for that previous assignment.
+
+```{r}
+##############
+# QUESTION 2 #
+##############
+
+# Original regression model  
+glm.og <- glm(pbs2s3 ~ wartype + logcost + wardur + factnum + factnum2 + 
+              trnsfcap + develop + exp + decade + treaty + untype4,
+            data = foo, family = binomial)
+
+# New regression model
+glm.new <- glm(pbs2s3 ~ wartype + logcost + wardur + factnum + factnum2 + 
+                     trnsfcap + develop + exp + decade + treaty + untype4 + 
+                     I(exp*untype4) + I(wardur*logcost), 
+                   data = foo, family = binomial)
+
+mean.wartype <- mean(foo$wartype)
+mean.logcost <- mean(foo$logcost)
+mean.wardur <- mean(foo$wardur)
+mean.factnum <- mean(foo$factnum)
+mean.factnum2 <- mean(foo$factnum2)
+mean.trnsfcap <- mean(foo$trnsfcap)
+mean.develop <- mean(foo$develop)
+mean.exp <- mean(foo$exp)
+mean.decade <- mean(foo$decade)
+mean.treaty <- mean(foo$treaty)
+
+# Define function to  ... of regression model  
+get_logit <- function(X, coef) {
+  logit <- coef[1] + sum(coef[2:length(coef)]*X)
+  return(exp(logit) / (1 + exp(logit)))
+}
+
+storage.original.treat <- rep(NA, length)
+storage.original.control <- rep(NA, length)
+
+# length <- nrow(foo)
+length = 315
+
+for (wardur in 1:length) {
+  X.treat <- c(mean.wartype, mean.logcost, wardur, mean.factnum, mean.factnum2, 
+               mean.trnsfcap, mean.develop, mean.exp, mean.decade, mean.treaty, 1)
+  X.control <- c(mean.wartype, mean.logcost, wardur, mean.factnum, mean.factnum2, 
+                 mean.trnsfcap, mean.develop, mean.exp, mean.decade, mean.treaty, 0)
+  
+  storage.original.treat[wardur]  <- get_logit(X.treat, coef(glm.og))
+  storage.original.control[wardur]  <- get_logit(X.control, coef(glm.og))
+}
+
+original_y <- storage.original.treat - storage.original.control
+
+
+storage.logcost.treat <- rep(NA, length)
+storage.logcost.control <- rep(NA, length)
+
+for (wardur in 1:length) {
+  X.treat <- c(mean.wartype, mean.logcost, wardur, mean.factnum, mean.factnum2, 
+               mean.trnsfcap, mean.develop, mean.exp, mean.decade, mean.treaty, 1, 
+               mean.exp*1, wardur*mean.logcost) 
+  X.control <- c(mean.wartype, mean.logcost, wardur, mean.factnum, mean.factnum2, 
+                 mean.trnsfcap, mean.develop, mean.exp, mean.decade, mean.treaty, 0,
+                 mean.exp*0, wardur*mean.logcost) # Or just x3 0, 0, 0 ?
+  storage.logcost.treat[wardur]  <- get_logit(X.treat, coef(glm.new))
+  storage.logcost.control[wardur]  <- get_logit(X.control, coef(glm.new))
+}
+
+logcost_y <- storage.logcost.treat - storage.logcost.control
+
+plot(1:length, original_y, type = "l", lty = "dotted", ylim = c(0, 0.8), xlab = "Duration of wars in months", ylab = "Marginal effects of UN peacekeeping operations")
+lines(1:length, logcost_y, col = "blue", ylim = c(0, 0.8))
+# legend(1, 95, legend=c("Model with interaction terms", "Dotted: Original model"), col=c("black", "blue"), lty="dotted", cex=0.8)
+text(x=120,  y=0.75,  "Model with interaction terms", cex=0.8, col="blue")
+text(x=50,  y=0.58,  "Dotted: Original model", cex=0.8)
+```
+
+(3) Define treatment as below:
+	Tr <- rep(0, length(foo$uncint))
+	Tr[which(foo$uncint != 0] <- 1
+
+	What does this mean? What is "treatment"?
+
+```{r}
+##############
+# QUESTION 3 #
+##############
+
+Tr <- rep(0, length(foo$uncint))
+Tr[which(foo$uncint != 0)] <- 1
+
+head(Tr)
+
+# Outputs a 122 (the length of foo/foo's column "uncint") "0"s (a numeric) -- this is a dataframe?
+# Finds the indexes of all the values in foo's column "uncint" that are not equal to "0"/None and assigns a   1 to the same indexes in Tr
+# In other words,  it classifies the different levels of UN intervention (i.e. "Enforcement," "None," "Observer," "PKO" as either treatment (1) or control (0).  All descriptors other than "None"--  "Enforcement," "None," and "Observers"--are assigned the value of 1; and "None" is considered no treatment and assigned the value of 0.  
+# Note: the code should use "None" instead of "0" (and add a paranthese) in order for it to work as intended when finding the indexes in foo's uncint column. Hence, Tr[which(foo$uncint != 0)] <- 1 should be Tr[which(foo$uncint != "None")] <- 1 
+```

@@ -1,0 +1,455 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+(4) Let's pretend you work for an NGO and your manager asks you to estimate the impact of the treatment identified above on lenient peacebuilding success 2 years and 5 years after the war. You will have to search for these two outcomes variables in the codebook.
+
+(a) In no more than 1 sentence, articulate the causal question as best you can (being as clear as you can about treatment and control):
+
+
+(b) In no more than 1 sentence, explain how/why SUTVA might be violated here. In no more than 1 additional sentence, explain how you could in theory use the "restrict" argument (in Match()/GenMatch()) to help address this potential problem.
+  SEE MY CAUSAL INFERENCE ASSIGNMENT DOCUMENT
+  
+(c) Use simple logistic regression, propensity score matching, and genetic matching to try to answer these questions. 
+
+```{r}
+##############
+# QUESTION 4 #
+##############
+```
+
+```{r}
+# Load relevant library
+library(Matching)
+
+# Load relevant data
+foo <- read.csv("https://course-resources.minerva.kgi.edu/uploaded_files/mke/00086677-3767/peace.csv")
+foo <- foo[c(-19, -47), ]
+Tr <- rep(0, length(foo$uncint))
+Tr[which(foo$uncint != "None")] <- 1
+# foo$uncint
+foo$Tr <- Tr
+```
+
+```{r}
+### Logistic regression
+# Estimate the impact of the treatment identified above on lenient peacebuilding success 2 years and 5 years after the war using LOGISTIC REGRESSION
+```
+
+
+```{r}
+## Logistic regression model for peacebuilding success TWO years after
+# summary(foo$pbs2l) # Check out the data for peacebuilding success 2 years after  
+# NAs.2 <- is.na(foo) # Find the NAs
+# foo.2 <- foo[-NAs.2,] # Remove the NAs
+glm.2 <- glm(pbs2l ~ Tr + wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap, 
+                    data = foo, family = binomial) # Create the logistic model
+print("Logistic regression model for peacebuilding success TWO years after")
+summary(glm.2) # Check out the logistic model
+
+# Treatment effect estimate for 2 years
+foo.counter_factual <- foo
+foo.counter_factual$Tr <- rep(1, nrow(foo)) - foo$Tr
+counter.factuals <- predict(glm.2, newdata=foo.counter_factual, type="response")
+unit_treat_effects <- rep(NA, nrow(foo))
+
+mask <- foo$Tr == 1
+unit_treat_effects[mask] <- glm.2$fitted.values[mask] - counter.factuals[mask]
+unit_treat_effects[!mask] <- counter.factuals[!mask] - glm.2$fitted.values[!mask]
+tee.2 <- mean(unit_treat_effects)
+print("The estimated treatment effect - 2 years:")
+tee.2
+
+# p-value from MatchBalance for logistic regression - 2 years
+print("The MatchBalance results for logistic regression (i.e. no matching) for 2 years are:")
+mb.l2 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap + 
+                      wartype*wartype + logcost*logcost + wardur*wardur + factnum2 + 
+                      trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      wartype*trnsfcap + wartype*develop + wartype*exp + wartype*decade + wartype*treaty + wartype*costcap
+                      + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum + logcost*factnum2 +
+                      logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*treaty + logcost*costcap
+                      + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap
+                      + costcap*wartype + costcap*logcost*logcost + costcap*wardur + costcap*factnum + costcap*factnum2 +
+                      costcap*trnsfcap + costcap*develop + costcap*exp + costcap*decade + costcap*treaty + costcap*costcap,
+                      data = foo, nboots=500)
+```
+
+
+```{r}
+## Logistic regression model for peacebuilding success FIVE years after
+# summary(foo$pbs5l) # Check out the data for peacebuilding success 5 years after   
+NAs <- is.na(foo$pbs5l) # Find the NAs
+foo.5 <- foo[!NAs,]
+glm.5 <- glm(pbs5l ~ Tr + wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap, 
+            data = foo[!NAs,], family = binomial) # Create the logistic model
+print("Logistic regression model for peacebuilding success FIVE years after")
+summary(glm.5) # Check out the logistic model
+
+# Treatment effect estimate for 5 years
+foo.counter_factual <- foo[!NAs,]
+foo.counter_factual$Tr <- 1 - foo$Tr[!NAs]
+counter.factuals <- predict(glm.5, newdata=foo.counter_factual, type="response")
+unit_treat_effects <- rep(NA, nrow(foo[!NAs,]))
+
+mask <- foo[!NAs,]$Tr == 1
+unit_treat_effects[mask] <- glm.5$fitted.values[mask] - counter.factuals[mask]
+unit_treat_effects[!mask] <- counter.factuals[!mask] - glm.5$fitted.values[!mask]
+tee.5 <- mean(unit_treat_effects)
+print("The estimated treatment effect - 5 years:")
+tee.5
+
+# p-value from MatchBalance for logistic regression - 5 years
+print("The MatchBalance results for logistic regression (i.e. no matching) for 2 years are:")
+mb.l5 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap + 
+                      wartype*wartype + logcost*logcost + wardur*wardur + factnum2 + 
+                      trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      wartype*trnsfcap + wartype*develop + wartype*exp + wartype*decade + wartype*treaty + wartype*costcap
+                      + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum + logcost*factnum2 +
+                      logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*treaty + logcost*costcap
+                      + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap
+                      + costcap*wartype + costcap*logcost*logcost + costcap*wardur + costcap*factnum + costcap*factnum2 +
+                      costcap*trnsfcap + costcap*develop + costcap*exp + costcap*decade + costcap*treaty + costcap*costcap*costcap, 
+                      data = foo.5, nboots=500)
+
+```
+
+
+```{r}
+### Propensity-score matching	
+# Estimate the impact of the treatment identified above on lenient peacebuilding success 2 years and 5 years after the war using PROPENSITY SCORE MATCHING
+```
+
+
+```{r}
+## Estimation for peacebuilding success after TWO years below
+# Estimate the propensity model
+glm.ps2 <- glm(pbs2l ~ Tr + wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap, 
+                      data = foo, family = binomial)
+summary(glm.ps2)
+
+# Save data objects
+X.ps2 <- glm.ps2$fitted.values  # Same thing as saying: glm.ps$fitted 
+
+Y2 <- foo$pbs2l
+
+# Perform one-to-one matching with replacement (M=1 option) 
+m.ps2  <- Match(Y=Y2, Tr=Tr, X=X.ps2, M=1)
+
+# Estimate the treatment effect on the treated ("estimand" option = ATT)
+te.t2 <- m.ps2$est
+print("The estimated average causal effect (treatment effect) - 2 years")
+te.t2
+summary(m.ps2)  
+
+# The estimated average causal effect (treatment effect) without any bias adjustment
+# te.nba2 <- m.ps2$est.noadj
+# te.nba2
+
+# Obtain the covariate balance
+mb.ps2 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap + 
+                      wartype*wartype + logcost*logcost + wardur*wardur + factnum2 + 
+                      trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      wartype*trnsfcap + wartype*develop + wartype*exp + wartype*decade + wartype*treaty + wartype*costcap
+                      + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum + logcost*factnum2 +
+                      logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*treaty + logcost*costcap
+                      + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap
+                      + costcap*wartype + costcap*logcost*logcost + costcap*wardur + costcap*factnum + costcap*factnum2 +
+                      costcap*trnsfcap + costcap*develop + costcap*exp + costcap*decade + costcap*treaty + costcap*costcap*costcap, 
+                      data = foo, 
+                    match.out = m.ps2, nboots=500)
+```
+
+
+```{r}
+## Estimation for peacebuilding success after FIVE years below
+
+# Take care of the problematic NAs 
+NAs <- is.na(foo$pbs5l) # Find the NAs
+foo.5 <- foo[!NAs,] # Create new dataset without NAs
+
+# Estimate the propensity model for foo.5 (= foo but excludes NAs)
+glm.ps5 <- glm(pbs5l ~ Tr + wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap, data = foo.5, family = binomial)
+
+# Save data objects
+X.ps5 <- glm.ps5$fitted.values  # Same thing as saying: glm.ps$fitted 
+
+Y5 <- foo.5$pbs5l
+
+# Perform one-to-one matching with replacement (M=1 option) 
+m.ps5  <- Match(Y=Y5, Tr=foo.5$Tr, X=X.ps5, M=1)
+
+# The estimated treatment effect on the treated ("estimand" option = ATT)
+te.t5 <- m.ps5$est
+print("The estimated average causal effect (treatment effect) - 5 years")
+te.t5
+summary(glm.ps5)
+
+# The estimated average causal effect (treatment effect) without any bias adjustment
+# te.nba5 <- m.ps5$est.noadj
+# print("The estimated average causal effect (treatment effect) without any bias adjustment")
+# te.nba5
+
+# Obtain the covariate balance
+mb.ps5 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap + 
+                      wartype*wartype + logcost*logcost + wardur*wardur + factnum2 + 
+                      trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      wartype*trnsfcap + wartype*develop + wartype*exp + wartype*decade + wartype*treaty + wartype*costcap
+                      + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum + logcost*factnum2 +
+                      logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*treaty + logcost*costcap
+                      + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap
+                      + costcap*wartype + costcap*logcost*logcost + costcap*wardur + costcap*factnum + costcap*factnum2 +
+                      costcap*trnsfcap + costcap*develop + costcap*exp + costcap*decade + costcap*treaty + costcap*costcap*costcap, 
+                      data = foo, 
+                    match.out = m.ps5, nboots=500)
+```
+
+
+```{r}
+# Genetic matching
+# Estimate the impact of the treatment identified above on lenient peacebuilding success 2 years and 5 years after the war using GENETIC MATCHING
+```
+
+
+```{r}
+## Genetic matching for peacebuilding success after TWO years
+# Define covariates to match on
+X.g2 = cbind(foo$wartype, foo$logcost, foo$wardur, foo$factnum, 
+          foo$factnum2, foo$trnsfcap, foo$develop, foo$exp, foo$decade, foo$treaty, foo$costcap, 
+          I(foo$wartype*foo$wartype), I(foo$logcost*foo$logcost), I(foo$wardur*foo$wardur),
+          I(foo$trnsfcap*foo$trnsfcap), I(foo$develop*foo$develop), I(foo$exp*foo$exp), 
+          I(foo$decade*foo$decade), I(foo$treaty*foo$treaty), I(foo$costcap*foo$costcap))
+
+# X.g2 = cbind(foo$wartype, foo$logcost, foo$wardur, foo$factnum, 
+         # foo$factnum2, foo$trnsfcap, foo$develop, foo$exp, foo$decade, foo$treaty, 
+         # foo$eh, foo$milout, foo$gurrlag5, foo$costcap)
+
+# Perform genetic matching
+genout.2 <- GenMatch(Tr=Tr, X=X.g2, M=1,
+                   pop.size=200, max.generations=10, wait.generations=25)
+
+# Match based on weighted covariates obtained
+m.g2 <- Match(Y=Y2, Tr=Tr, X=X.g2, M=1, Weight.matrix = genout.2)
+
+# The estimated treatment effect on the treated ("estimand" option = ATT)
+summary(m.g2)
+
+# The estimated average causal effect (treatment effect) without any bias adjustment
+# m.g2$est.noadj
+
+# Obtain the covariate balance
+mb.g2 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap + 
+                      wartype*wartype + logcost*logcost + wardur*wardur + factnum2 + 
+                      trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      wartype*trnsfcap + wartype*develop + wartype*exp + wartype*decade + wartype*treaty + wartype*costcap
+                      + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum +
+                      logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*costcap
+                      + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap
+                      + costcap*wartype + costcap*logcost*logcost + costcap*wardur + costcap*factnum2 +
+                      costcap*trnsfcap + costcap*exp + costcap*decade + costcap*treaty + costcap*costcap*costcap, 
+                      data = foo, 
+                    match.out = m.g2, nboots=500)
+```
+
+
+```{r}
+## Genetic matching for peacebuilding success after FIVE years
+
+# Define covariates to match on
+X.g5 = cbind(foo.5$wartype, foo.5$logcost, foo.5$wardur, foo.5$factnum, 
+          foo.5$factnum2, foo.5$trnsfcap, foo.5$develop, foo.5$exp, foo.5$decade, foo.5$treaty, foo.5$costcap, 
+          I(foo.5$wartype*foo.5$wartype), I(foo.5$logcost*foo.5$logcost), I(foo.5$wardur*foo.5$wardur),
+          I(foo.5$trnsfcap*foo.5$trnsfcap), I(foo.5$develop*foo.5$develop), I(foo.5$exp*foo.5$exp), 
+          I(foo.5$decade*foo.5$decade), I(foo.5$treaty*foo.5$treaty), I(foo.5$costcap*foo.5$costcap))
+
+
+# X.g5 = cbind(foo.5$wartype, foo.5$logcost, foo.5$wardur, foo.5$factnum, 
+         # foo.5$factnum2, foo.5$trnsfcap, foo.5$develop, foo.5$exp, foo.5$decade, foo.5$treaty, foo.5$eh, foo.5$milout, foo.5$gurrlag5, foo.5$costcap)
+
+# Perform genetic matching
+genout.5 <- GenMatch(Tr=foo.5$Tr, X=X.g5, M=1,
+                   pop.size=200, max.generations=10, wait.generations=25)
+
+# Match based on weighted covariates obtained
+m.g5 <- Match(Y=Y5, Tr=foo.5$Tr, X=X.g5, M=1, Weight.matrix = genout.5)
+
+# The estimated treatment effect on the treated ("estimand" option = ATT)
+summary(m.g5)
+
+# The estimated average causal effect (treatment effect) without any bias adjustment
+# m.g5$est.noadj
+
+# Obtain the covariate balance
+mb.g5 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap + 
+                      wartype*wartype + logcost*logcost + wardur*wardur + factnum2 + 
+                      trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      wartype*trnsfcap + wartype*develop + wartype*decade + wartype*treaty + wartype*costcap
+                      + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum + logcost*factnum2 +
+                      logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*treaty + logcost*costcap
+                      + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap
+                      + costcap*wartype + costcap*logcost*logcost + costcap*wardur + costcap*factnum + costcap*factnum2 +
+                      costcap*trnsfcap + costcap*develop + costcap*exp + costcap*decade + costcap*costcap*costcap, 
+                      data = foo.5, 
+                    match.out = m.g5, nboots=500)
+
+```
+
+```{r}
+### Genetic matching with propensity-scores
+# Estimate the impact of the treatment identified above on lenient peacebuilding success 2 years and 5 years after the war using GENETIC MATCHING W/ PROPENSITY-SCORES
+```
+
+
+```{r}
+## Genetic matching with propensity scores for peacebuilding success after TWO years
+# Define covariates to match on
+# Include the propensity scores (X.ps <- glm.ps$fitted) as an additional covariate to previous covariates included in genetic matching (X.g) 
+X.gps = cbind(X.ps2, X.g2)
+
+# Perform genetic matching with propensity scores
+genout.gps2 <- GenMatch(Tr=Tr, X=X.gps, M=1,
+                   pop.size=200, max.generations=10, wait.generations=25)
+
+# Match based on weighted covariates obtained
+m.gps2 <- Match(Y=Y2, Tr=Tr, X=X.gps, M=1, Weight.matrix = genout.gps2)
+
+# The estimated treatment effect on the treated ("estimand" option = ATT)
+summary(m.gps2)
+
+# The estimated average causal effect (treatment effect) without any bias adjustment
+# m.gps2$est.noadj
+
+# Obtain the covariate balance
+mb.gps2 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap + 
+                      wartype*wartype + logcost*logcost + wardur*wardur + factnum2 + 
+                      trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      wartype*trnsfcap + wartype*develop + wartype*decade + wartype*treaty + wartype*costcap
+                      + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum + logcost*factnum2 +
+                      logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*treaty + logcost*costcap
+                      + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap
+                      + costcap*wartype + costcap*logcost*logcost + costcap*wardur + costcap*factnum + costcap*factnum2 +
+                      costcap*trnsfcap + costcap*develop + costcap*exp + costcap*decade + costcap*costcap*costcap, 
+                      data = foo, 
+                    match.out = m.gps2, nboots=500)
+```
+
+
+```{r}
+## Genetic matching with propensity-scores for peacebuilding success after FIVE years
+
+# Define covariates to match on
+X.gps5 = cbind(X.ps5, X.g5)
+
+# Perform genetic matching with propensity-scores
+genout.gps5 <- GenMatch(Tr=foo.5$Tr, X=X.gps5, M=1,
+                   pop.size=200, max.generations=10, wait.generations=25)
+
+# Match based on weighted covariates obtained
+m.gps5 <- Match(Y=Y5, Tr=foo.5$Tr, X=X.gps5, M=1, Weight.matrix = genout.gps5)
+
+# The estimated treatment effect on the treated ("estimand" option = ATT)
+summary(m.gps5)
+
+# The estimated average causal effect (treatment effect) without any bias adjustment
+# m.gps5$est.noadj
+
+# Obtain the covariate balance
+
+# mb.gps5 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      # trnsfcap + develop + exp + decade + treaty + costcap + 
+                      # wartype*wartype + logcost*logcost + wardur*wardur + factnum2*factnum + 
+                      # trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      # + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      # wartype*trnsfcap + wartype*develop + wartype*exp + wartype*decade + wartype*treaty + wartype*costcap
+                      # + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum + logcost*factnum2 +
+                      # logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*treaty + logcost*costcap
+                      # + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      # wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap,
+                      # + factnum*wartype + factnum*logcost + factnum*wardur + factnum*factnum*factnum2 +
+                      # factnum*trnsfcap + factnum*develop + factnum*exp + factnum*decade + factnum*treaty + factnum*costcap
+                      # + trnsfcap*wartype + trnsfcap*logcost + trnsfcap*wardur + trnsfcap*factnum + trnsfcap*factnum2 +
+                      # trnsfcap*trnsfcap*trnsfcap + trnsfcap*develop + trnsfcap*exp + trnsfcap*decade + trnsfcap*treaty + trnsfcap*costcap
+                      # + develop*wartype + develop*logcost + develop*wardur + develop*factnum + develop*factnum2 +
+                      # develop*trnsfcap + develop*develop*develop + develop*exp + develop*decade + develop*treaty + develop*costcap
+                      # + exp*wartype + exp*logcost + exp*wardur + exp*factnum + exp*factnum2 +
+                      # exp*trnsfcap + exp*develop + exp*exp*exp + exp*decade + exp*treaty + exp*costcap 
+                      # + decade*wartype + decade*logcost + decade*wardur + decade*factnum + decade*factnum2 +
+                      # decade*trnsfcap + decade*develop + decade*exp + decade*decade*decade + decade*reaty + decade*costcap 
+                      # + treaty*wartype + treaty*logcost + treaty*wardur + treaty*factnum + treaty*factnum2 +
+                      # treaty*trnsfcap + treaty*develop + treaty*exp + treaty*decade + treaty*treaty*treaty + treaty*costcap 
+                      # + costcap*wartype + costcap*logcost + costcap*wardur + costcap*factnum + costcap*factnum2 +
+                      # costcap*trnsfcap + costcap*develop + costcap*exp + costcap*decade + costcap*treaty + costcap*costcap*costcap,
+                      # data = foo.5, 
+                      # match.out = m.gps5, nboots=500)
+
+mb.gps5 <- MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + 
+                      trnsfcap + develop + exp + decade + treaty + costcap + 
+                      wartype*wartype + logcost*logcost + wardur*wardur + factnum2 + 
+                      trnsfcap*trnsfcap + develop*develop + exp*exp + decade*decade + treaty*treaty + costcap*costcap 
+                      + wartype*wartype*wartype + wartype*logcost + wartype*wardur + wartype*factnum + wartype*factnum2 + 
+                      wartype*trnsfcap + wartype*develop + wartype*exp + wartype*decade + wartype*treaty + wartype*costcap
+                      + logcost*wartype + logcost*logcost*logcost + logcost*wardur + logcost*factnum2 +
+                      logcost*trnsfcap + logcost*develop + logcost*exp + logcost*decade + logcost*costcap
+                      + wardur*wartype + wardur*logcost + wardur*wardur*wardur + wardur*factnum + wardur*factnum2 +
+                      wardur*trnsfcap + wardur*develop + wardur*exp + wardur*decade + wardur*treaty + wardur*costcap
+                      + costcap*wartype + costcap*logcost*logcost + costcap*wardur + costcap*factnum2 +
+                      costcap*trnsfcap + costcap*exp + costcap*decade + costcap*treaty + costcap*costcap*costcap,
+                      data = foo.5,
+                      match.out = m.gps5, nboots = 500)
+
+
+```
+
+For the matching exercises, measure balance on AT LEAST the basic variables we considered in the class exercise. In addition, at least one genetic matching attempt should incorporate propensity scores.
+
+For the genetic matching exercise, population size should be at least 200 and you should run it for at least 25 generations (which may require you to modify the number of non-changing generations). When performing genetic matching, take a little time to
+
+--> TRY different approaches to producing excellent balance. 
+    - tweak the values of "M"
+    - do caliper matching
+    - match on quadratic and/or interaction terms
+    - attempt exact matching, etc.
+
+JUST ONE WORD OF ADVICE: The precise way you run GenMatch is how you have to run Match. For example, if you run GenMatch with M = 2 and X includes interaction terms etc., then in the next line of code you have to run Match exactly the same way (using the GenMatch output as the weight.matrix). Then in the next line you run MatchBalance, using the Match output.
+
+Match with replacement and allow ties. Ideally, you would 
+    - measure/optimize balance on the interaction terms and quadratic terms as well (but this will make things a bit harder than simply balancing on the basic variables). 
+
+Your final answer should include:
+
+(i) a table like this one--the caption below the table should include the asterisked footnote AS WELL AS **the functional forms of the propensity score model, **the variables you've genetically matched on, and **the MatchBalance variables used for genetic matching:
+  SEE TABLE IN DOCUMENT INSTRUCTIONS
+
+(ii) A short discussion of your matching strategy and attempts. What were some unsuccessful attempts? How did you go about choosing covariates? [Max. 5 sentences]
+    SEE MY CAUSAL INFERENCE ASSIGNMENT DOCUMENT
+
+
+(5) Let's pretend you have to write a decision memo for policy purposes summarizing all your work (above). Your memo would begin with a brief executive summary summarizing what you've done and your policy advice, and it would end with a brief concluding passage restating your analysis and what you want your reader to take away from it (including the policy advice). The executive summary and the conclusion would be very similar--to the extent the two are at all different, there is scope for the conclusion to be a bit more technical and/or nuanced, and the conclusion could also include some recommendations for relevant future analysis. 
+    SEE MY CAUSAL INFERENCE ASSIGNMENT DOCUMENT
+
+
